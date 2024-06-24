@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'package:dictionary/model/word.dart';
+import 'package:dictionary/pages/wordDetails.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     systemNavigationBarColor: Color(0xFF444EC7),
     statusBarColor: Color(0xFFEB6434),
@@ -43,6 +45,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  bool isSkeleton = true;
   String randomWord = "";
   Word myWord = Word(
       value: 'value',
@@ -118,6 +121,7 @@ class _MyHomePageState extends State<MyHomePage> {
             origin: jsonData[0]["origin"] ?? '',
             definitions: definitions,
           );
+          isSkeleton = false;
         });
       }
     } catch (error) {
@@ -162,116 +166,133 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  const Text(
-                    "My english-english dictionary",
-                    style: TextStyle(
-                        fontFamily: "PTSans",
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(
-                    height: 20,
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
+            SingleChildScrollView(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "My english-english dictionary",
+                      style: TextStyle(
+                          fontFamily: "PTSans",
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold),
                     ),
-                    child: const TextField(
-                      //controller: searchController,
-                      decoration: InputDecoration(
-                        hintText: "Search note...",
-                        prefixIcon: Icon(Icons.search),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.all(16),
+                    const SizedBox(
+                      height: 20,
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const TextField(
+                        //controller: searchController,
+                        decoration: InputDecoration(
+                          hintText: "Search note...",
+                          prefixIcon: Icon(Icons.search),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(16),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(
-                    height: 20,
-                  ),
-                  Container(
-                    width: MediaQuery.sizeOf(context).width,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Random word",
-                          style: TextStyle(color: Colors.purple),
-                        ),
-                        Text(
-                          myWord.value,
-                          style: const TextStyle(
-                              fontFamily: "PTSans",
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold),
-                        ),
-                        myWord.phonetic != ""
-                            ? Text(
-                                myWord.phonetic,
+                    const SizedBox(
+                      height: 20,
+                    ),
+                    Skeletonizer(
+                      enabled: isSkeleton,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  WordDetailsPage(word: myWord.value),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: MediaQuery.sizeOf(context).width,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Random word",
+                                style: TextStyle(color: Colors.purple),
+                              ),
+                              Text(
+                                myWord.value,
                                 style: const TextStyle(
-                                    fontSize: 18, color: Colors.grey),
-                              )
-                            : Container(),
-                        const SizedBox(
-                          height: 5,
-                        ),
-                        Text(
-                          myWord.definitions[0],
-                          style: const TextStyle(
-                            fontSize: 14,
+                                    fontFamily: "PTSans",
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              myWord.phonetic != ""
+                                  ? Text(
+                                      myWord.phonetic,
+                                      style: const TextStyle(
+                                          fontSize: 18, color: Colors.grey),
+                                    )
+                                  : Container(),
+                              const SizedBox(
+                                height: 5,
+                              ),
+                              Text(
+                                myWord.definitions[0],
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(
-                    height: 10,
-                  ),
-                  const Text(
-                    "Recents",
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(
-                    height: 10,
-                  ),
-                  SizedBox(
-                    height: 150,
-                    child: ListView(
-                      physics: const BouncingScrollPhysics(),
-                      shrinkWrap: true,
-                      scrollDirection: Axis.horizontal,
-                      children: const [
-                        RecentBox(),
-                        SizedBox(
-                          width: 20,
-                        ),
-                        RecentBox(),
-                        SizedBox(
-                          width: 20,
-                        ),
-                        RecentBox(),
-                        SizedBox(
-                          width: 20,
-                        ),
-                      ],
+                    const SizedBox(
+                      height: 10,
                     ),
-                  )
-                ],
+                    const Text(
+                      "Recents",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(
+                      height: 10,
+                    ),
+                    SizedBox(
+                      height: 150,
+                      child: ListView(
+                        physics: const BouncingScrollPhysics(),
+                        shrinkWrap: true,
+                        scrollDirection: Axis.horizontal,
+                        children: const [
+                          RecentBox(),
+                          SizedBox(
+                            width: 20,
+                          ),
+                          RecentBox(),
+                          SizedBox(
+                            width: 20,
+                          ),
+                          RecentBox(),
+                          SizedBox(
+                            width: 20,
+                          ),
+                        ],
+                      ),
+                    )
+                  ],
+                ),
               ),
             ),
           ],
