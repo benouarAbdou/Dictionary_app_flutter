@@ -1,5 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:dictionary/database/myDataBase.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -29,12 +31,23 @@ class _WordDetailsPageState extends State<WordDetailsPage> {
 
       if (req.statusCode == 200) {
         var jsonData = jsonDecode(req.body);
-        setState(() {
-          wordData = jsonData[0];
-        });
+        if (jsonData.isNotEmpty) {
+          setState(() {
+            wordData = jsonData[0];
+          });
+          SqlDb db = SqlDb();
+          db.saveRecentLine(wordData!['word'],
+              jsonData[0]['meanings'][0]['definitions'][0]['definition']);
+        } else {
+          Navigator.pop(context, "bad");
+        }
+      } else {
+        Navigator.pop(context, "bad");
       }
     } catch (error) {
       print("Error fetching word: $error");
+
+      Navigator.pop(context, "bad");
     }
   }
 
@@ -136,7 +149,7 @@ class _WordDetailsPageState extends State<WordDetailsPage> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        "${"{" + meaning['partOfSpeech']}}",
+                                        "{${meaning['partOfSpeech']}}",
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
@@ -193,23 +206,3 @@ class _WordDetailsPageState extends State<WordDetailsPage> {
     );
   }
 }
-/*wordData!['origin'] != null
-                    ? Column(
-                        children: [
-                          const Text(
-                            "Origin",
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Color(0xFF444EC7),
-                            ),
-                          ),
-                          Text(
-                            wordData!['origin'],
-                            style: const TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      )
-                    : const SizedBox.shrink(),*/

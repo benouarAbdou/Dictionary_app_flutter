@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:dictionary/database/myDataBase.dart';
 import 'package:dictionary/model/word.dart';
 import 'package:dictionary/pages/wordDetails.dart';
 import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -46,13 +49,34 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   bool isSkeleton = true;
+  SqlDb db = SqlDb();
   String randomWord = "";
+  late Timer fetchDataTimer;
+  late DateTime lastFetchTime = DateTime.now();
   Word myWord = Word(
       value: 'value',
       phonetic: "phonetic",
       audio: 'audio',
       origin: 'origin',
       definitions: ['definition']);
+  final TextEditingController searchController = TextEditingController();
+
+  void _showInvalidWordToast() {
+    Fluttertoast.showToast(
+      msg: "Invalid word",
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      timeInSecForIosWeb: 1,
+      backgroundColor: Colors.red,
+      textColor: Colors.white,
+      fontSize: 16.0,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> fetchRecentWords() async {
+    // Fetch all rows from 'word' table
+    return await db.readData('SELECT * FROM word ORDER BY wordId DESC LIMIT 5');
+  }
 
   Future<void> getWord() async {
     try {
@@ -122,6 +146,7 @@ class _MyHomePageState extends State<MyHomePage> {
             definitions: definitions,
           );
           isSkeleton = false;
+          lastFetchTime = DateTime.now();
         });
       }
     } catch (error) {
@@ -137,12 +162,45 @@ class _MyHomePageState extends State<MyHomePage> {
     await getDictionary(randomWord); // Await fetching data using random word
   }
 
+  void navigateToWordDetails(String word) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WordDetailsPage(word: word),
+      ),
+    ).then((value) {
+      if (value == "bad") _showInvalidWordToast();
+
+      print("then called"); // Call the function here
+    });
+  }
+
+  void fetchDataIfNeeded() {
+    const fetchTimeout =
+        Duration(seconds: 10); // Define your fetch timeout duration
+
+    if (isSkeleton) {
+      Duration timeElapsed = DateTime.now().difference(lastFetchTime);
+      if (timeElapsed > fetchTimeout) {
+        print("Fetching data again due to timeout");
+        fetchData();
+      }
+    }
+  }
+
   @override
   void initState() {
-    // TODO: implement initState
-    fetchData();
-
+    fetchData(); // Initial data fetch
+    fetchDataTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      fetchDataIfNeeded(); // Check every 10 seconds if data fetch is needed
+    });
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    fetchDataTimer.cancel(); // Cancel the timer when the widget is disposed
+    super.dispose();
   }
 
   @override
@@ -190,14 +248,29 @@ class _MyHomePageState extends State<MyHomePage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const TextField(
-                        //controller: searchController,
+                      child: TextField(
+                        controller: searchController,
                         decoration: InputDecoration(
-                          hintText: "Search note...",
-                          prefixIcon: Icon(Icons.search),
+                          hintText: "Search word...",
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.check),
+                            onPressed: () {
+                              if (searchController.text.isNotEmpty) {
+                                navigateToWordDetails(searchController.text);
+                                FocusScope.of(context).unfocus();
+                              }
+                            },
+                          ),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.all(16),
+                          contentPadding: const EdgeInsets.all(16),
                         ),
+                        onSubmitted: (value) {
+                          if (value.isNotEmpty) {
+                            navigateToWordDetails(value);
+                            FocusScope.of(context).unfocus();
+                          }
+                        },
                       ),
                     ),
                     const SizedBox(
@@ -214,6 +287,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                   WordDetailsPage(word: myWord.value),
                             ),
                           );
+
+                          db.saveRecentLine(
+                              myWord.value, myWord.definitions[0]);
                         },
                         child: Container(
                           width: MediaQuery.sizeOf(context).width,
@@ -271,24 +347,52 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                     SizedBox(
                       height: 150,
-                      child: ListView(
-                        physics: const BouncingScrollPhysics(),
-                        shrinkWrap: true,
-                        scrollDirection: Axis.horizontal,
-                        children: const [
-                          RecentBox(),
-                          SizedBox(
-                            width: 20,
-                          ),
-                          RecentBox(),
-                          SizedBox(
-                            width: 20,
-                          ),
-                          RecentBox(),
-                          SizedBox(
-                            width: 20,
-                          ),
-                        ],
+                      child: FutureBuilder(
+                        future: fetchRecentWords(),
+                        builder: (context,
+                            AsyncSnapshot<List<Map<String, dynamic>>>
+                                snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                                child: CircularProgressIndicator());
+                          } else if (snapshot.hasError) {
+                            return Center(
+                                child: Text('Error: ${snapshot.error}'));
+                          } else if (!snapshot.hasData ||
+                              snapshot.data!.isEmpty) {
+                            return Container();
+                          } else {
+                            return SizedBox(
+                              height: 150,
+                              child: ListView.builder(
+                                physics: const BouncingScrollPhysics(),
+                                shrinkWrap: true,
+                                scrollDirection: Axis.horizontal,
+                                itemCount: snapshot.data!.length,
+                                itemBuilder: (context, index) {
+                                  String value = snapshot.data![index]['value'];
+                                  String description =
+                                      snapshot.data![index]['description'];
+                                  return Row(
+                                    children: [
+                                      RecentBox(
+                                        tapFunc: () {
+                                          navigateToWordDetails(value);
+                                        },
+                                        value: value,
+                                        description: description,
+                                      ),
+                                      const SizedBox(
+                                        width: 20,
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            );
+                          }
+                        },
                       ),
                     )
                   ],
@@ -303,30 +407,52 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 class RecentBox extends StatelessWidget {
+  final String value;
+  final String description;
+  final Function tapFunc;
+
   const RecentBox({
-    super.key,
-  });
+    required this.value,
+    required this.description,
+    Key? key,
+    required this.tapFunc,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      height: 150,
-      width: 150,
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(10)),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Hello",
-            style: TextStyle(
+    return GestureDetector(
+      onTap: () {
+        tapFunc();
+      },
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        height: 150,
+        width: 150,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
                 fontFamily: "PTSans",
                 fontWeight: FontWeight.bold,
-                fontSize: 18),
-          ),
-          Text("Definition"),
-        ],
+                fontSize: 18,
+              ),
+            ),
+            Text(
+              description,
+              maxLines: 5, // Maximum lines before truncating
+              overflow: TextOverflow.ellipsis, // Adds ellipsis when overflow
+              style: const TextStyle(
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
